@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão Escolar</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700|Inter:400,700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="header">
+    <h1 id="titulo" tabindex="0">Gestão Escolar</h1>
+    <form id="busca-aluno" aria-label="Buscar aluno">
+      <input type="search" id="searchInput" placeholder="Buscar aluno..." aria-label="Buscar aluno" />
+      <button type="submit" aria-label="Buscar">🔍</button>
+    </form>
+  </header>
+  <main class="container">
+    <aside class="sidebar">
+      <section class="filtros">
+        <h2>Filtros</h2>
+        <label for="turmaSelect">Turma:</label>
+        <select id="turmaSelect" aria-label="Filtrar por turma"></select>
+        <label for="statusSelect">Status:</label>
+        <select id="statusSelect" aria-label="Filtrar por status">
+          <option value="">Todos</option>
+          <option value="ativo">Ativo</option>
+          <option value="inativo">Inativo</option>
+        </select>
+      </section>
+      <section class="estatisticas" aria-live="polite">
+        <h2>Estatísticas</h2>
+        <div id="statsTotal" class="card">Total de alunos: <span>0</span></div>
+        <div id="statsAtivos" class="card">Ativos: <span>0</span></div>
+        <div id="statsPorTurma" class="card">Por turma:</div>
+      </section>
+      <button id="btnNovoAluno" class="accent" aria-label="Novo Aluno">+ Novo Aluno</button>
+      <button id="btnNovaMatricula" class="accent" aria-label="Nova Matrícula">+ Nova Matrícula</button>
+    </aside>
+    <section class="principal" aria-label="Listagem principal">
+      <nav class="tabs">
+        <button id="tabAlunos" class="active" aria-label="Alunos">Alunos</button>
+        <button id="tabTurmas" aria-label="Turmas">Turmas</button>
+        <button id="tabRelatorios" aria-label="Relatórios">Relatórios</button>
+      </nav>
+      <div id="conteudoPrincipal" tabindex="0" aria-live="polite"></div>
+      <!-- Botões de exportação -->
+      <div style="margin-top:1rem;">
+        <button id="exportCsvBtn" class="accent" aria-label="Exportar lista de alunos em CSV">Exportar CSV</button>
+        <button id="exportJsonBtn" class="accent" aria-label="Exportar lista de alunos em JSON">Exportar JSON</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Novo Aluno -->
+  <div id="modalAluno" class="modal" aria-modal="true" aria-labelledby="modalAlunoTitulo" hidden>
+    <form id="formAluno" class="modal-content">
+      <h2 id="modalAlunoTitulo">Novo Aluno</h2>
+      <label for="nome">Nome*</label>
+      <input type="text" id="nome" name="nome" required minlength="3" maxlength="80" aria-required="true" />
+      <label for="data_nascimento">Data de Nascimento*</label>
+      <input type="date" id="data_nascimento" name="data_nascimento" required aria-required="true" />
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" pattern="^[^@]+@[^@]+\.[^@]+$" />
+      <label for="status">Status*</label>
+      <select id="status" name="status" required aria-required="true">
+        <option value="ativo">Ativo</option>
+        <option value="inativo">Inativo</option>
+      </select>
+      <label for="turma_id">Turma</label>
+      <select id="turma_id" name="turma_id"></select>
+      <div id="feedbackAluno" aria-live="assertive"></div>
+      <button type="submit" class="primary">Salvar</button>
+      <button type="button" id="fecharModalAluno" class="secondary">Cancelar</button>
+    </form>
+  </div>
+  
+  <!-- Modal Nova Matrícula -->
+  <div id="modalMatricula" class="modal" aria-modal="true" aria-labelledby="modalMatriculaTitulo" hidden>
+    <form id="formMatricula" class="modal-content">
+      <h2 id="modalMatriculaTitulo">Nova Matrícula</h2>
+      <label for="matriculaAluno">Aluno*</label>
+      <select id="matriculaAluno" name="matriculaAluno" required aria-required="true"></select>
+      <label for="matriculaTurma">Turma*</label>
+      <select id="matriculaTurma" name="matriculaTurma" required aria-required="true"></select>
+      <div id="feedbackMatricula" aria-live="assertive"></div>
+      <button type="submit" class="primary">Matricular</button>
+      <button type="button" id="fecharModalMatricula" class="secondary">Cancelar</button>
+    </form>
+  </div>
+  
+  <script src="scripts.js"></script>
+</body>
+</html>
