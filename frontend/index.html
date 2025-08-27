@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão Escolar</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Sistema de Gestão Escolar</h1>
+        <nav>
+            <button aria-label="Ver Alunos" class="nav-button active" data-section="alunos">Alunos</button>
+            <button aria-label="Ver Turmas" class="nav-button" data-section="turmas">Turmas</button>
+            <button aria-label="Ver Relatórios" class="nav-button" data-section="relatorios">Relatórios</button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Seção de Alunos -->
+        <section id="alunos" class="section active">
+            <div class="controls">
+                <div class="filters">
+                    <select id="filtroTurma" aria-label="Filtrar por turma">
+                        <option value="">Todas as turmas</option>
+                    </select>
+                    <select id="filtroStatus" aria-label="Filtrar por status">
+                        <option value="">Todos os status</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                    <input type="text" id="busca" placeholder="Buscar por nome..." aria-label="Buscar alunos por nome">
+                </div>
+                <button id="novoAluno" aria-label="Adicionar novo aluno">Novo Aluno</button>
+            </div>
+
+            <div class="table-container" role="region" aria-label="Lista de alunos">
+                <table>
+                    <caption>Lista de Alunos</caption>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Data de Nascimento</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Turma</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alunosLista"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção de Turmas -->
+        <section id="turmas" class="section">
+            <div class="controls">
+                <button id="novaTurma" aria-label="Adicionar nova turma">Nova Turma</button>
+            </div>
+
+            <div class="table-container" role="region" aria-label="Lista de turmas">
+                <table>
+                    <caption>Lista de Turmas</caption>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Capacidade</th>
+                            <th>Ocupação</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="turmasLista"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção de Relatórios -->
+        <section id="relatorios" class="section">
+            <div class="report-options">
+                <h2>Exportar Dados</h2>
+                <button id="exportarAlunosCSV" aria-label="Exportar lista de alunos em CSV">
+                    Exportar Alunos (CSV)
+                </button>
+                <button id="exportarAlunosJSON" aria-label="Exportar lista de alunos em JSON">
+                    Exportar Alunos (JSON)
+                </button>
+            </div>
+
+            <div class="statistics" aria-live="polite">
+                <h2>Estatísticas</h2>
+                <div id="statsContainer"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Aluno -->
+    <dialog id="alunoModal" aria-labelledby="modalTitle">
+        <h2 id="modalTitle">Novo Aluno</h2>
+        <form id="alunoForm">
+            <div class="form-group">
+                <label for="nome">Nome:</label>
+                <input type="text" id="nome" name="nome" required 
+                       minlength="3" maxlength="80" 
+                       aria-describedby="nomeHelp">
+                <small id="nomeHelp">Entre 3 e 80 caracteres</small>
+            </div>
+
+            <div class="form-group">
+                <label for="dataNascimento">Data de Nascimento:</label>
+                <input type="date" id="dataNascimento" name="dataNascimento" 
+                       required aria-describedby="dataHelp">
+                <small id="dataHelp">Mínimo 5 anos de idade</small>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" 
+                       aria-describedby="emailHelp">
+                <small id="emailHelp">Opcional</small>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Status:</label>
+                <select id="status" name="status" required>
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="turma">Turma:</label>
+                <select id="turma" name="turma" aria-describedby="turmaHelp">
+                    <option value="">Sem turma</option>
+                </select>
+                <small id="turmaHelp">Opcional</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" aria-label="Salvar aluno">Salvar</button>
+                <button type="button" class="close-modal" 
+                        aria-label="Cancelar e fechar">Cancelar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Modal de Turma -->
+    <dialog id="turmaModal" aria-labelledby="turmaModalTitle">
+        <h2 id="turmaModalTitle">Nova Turma</h2>
+        <form id="turmaForm">
+            <div class="form-group">
+                <label for="nomeTurma">Nome:</label>
+                <input type="text" id="nomeTurma" name="nomeTurma" required 
+                       maxlength="80" aria-describedby="nomeTurmaHelp">
+                <small id="nomeTurmaHelp">Máximo 80 caracteres</small>
+            </div>
+
+            <div class="form-group">
+                <label for="capacidade">Capacidade:</label>
+                <input type="number" id="capacidade" name="capacidade" 
+                       required min="1" aria-describedby="capacidadeHelp">
+                <small id="capacidadeHelp">Mínimo 1 aluno</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" aria-label="Salvar turma">Salvar</button>
+                <button type="button" class="close-modal" 
+                        aria-label="Cancelar e fechar">Cancelar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="scripts.js"></script>
+</body>
+</html>
