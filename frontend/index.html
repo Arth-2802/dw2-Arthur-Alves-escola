@@ -5,170 +5,395 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestão Escolar</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <header>
-        <h1>Sistema de Gestão Escolar</h1>
-        <nav>
-            <button aria-label="Ver Alunos" class="nav-button active" data-section="alunos">Alunos</button>
-            <button aria-label="Ver Turmas" class="nav-button" data-section="turmas">Turmas</button>
-            <button aria-label="Ver Relatórios" class="nav-button" data-section="relatorios">Relatórios</button>
-        </nav>
+    <!-- Header com navegação principal -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <h1 class="logo">
+                <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+                Gestão Escolar
+            </h1>
+            
+            <!-- Barra de busca -->
+            <div class="search-container">
+                <label for="search-input" class="sr-only">Buscar aluno por nome</label>
+                <input 
+                    type="search" 
+                    id="search-input" 
+                    class="search-input" 
+                    placeholder="Buscar aluno por nome..."
+                    aria-label="Campo de busca por nome do aluno"
+                    autocomplete="off"
+                >
+                <button type="button" class="search-btn" aria-label="Executar busca">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                </button>
+            </div>
+            
+            <!-- Navegação por tabs -->
+            <nav class="nav-tabs" role="navigation" aria-label="Navegação principal">
+                <button class="tab-btn active" data-tab="alunos" aria-pressed="true">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    Alunos
+                </button>
+                <button class="tab-btn" data-tab="turmas" aria-pressed="false">
+                    <i class="fas fa-chalkboard" aria-hidden="true"></i>
+                    Turmas
+                </button>
+            </nav>
+        </div>
     </header>
 
-    <main>
-        <!-- Seção de Alunos -->
-        <section id="alunos" class="section active">
-            <div class="controls">
-                <div class="filters">
-                    <select id="filtroTurma" aria-label="Filtrar por turma">
-                        <option value="">Todas as turmas</option>
-                    </select>
-                    <select id="filtroStatus" aria-label="Filtrar por status">
-                        <option value="">Todos os status</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="inativo">Inativo</option>
-                    </select>
-                    <input type="text" id="busca" placeholder="Buscar por nome..." aria-label="Buscar alunos por nome">
+    <!-- Conteúdo principal em duas colunas -->
+    <main class="main-content" role="main">
+        <!-- Coluna esquerda: Filtros e estatísticas -->
+        <aside class="sidebar" role="complementary" aria-label="Filtros e estatísticas">
+            <!-- Seção de Estatísticas -->
+            <section class="stats-section" aria-labelledby="stats-title">
+                <h2 id="stats-title" class="section-title">
+                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                    Estatísticas
+                </h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-alunos">0</div>
+                        <div class="stat-label">Total de Alunos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="alunos-ativos">0</div>
+                        <div class="stat-label">Alunos Ativos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-turmas">0</div>
+                        <div class="stat-label">Total de Turmas</div>
+                    </div>
                 </div>
-                <button id="novoAluno" aria-label="Adicionar novo aluno">Novo Aluno</button>
+            </section>
+
+            <!-- Seção de Filtros -->
+            <section class="filters-section" aria-labelledby="filters-title">
+                <h2 id="filters-title" class="section-title">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    Filtros
+                </h2>
+                
+                <form class="filters-form" role="search" aria-label="Filtros de busca">
+                    <div class="filter-group">
+                        <label for="filter-turma">Turma:</label>
+                        <select id="filter-turma" class="filter-select" aria-label="Filtrar por turma">
+                            <option value="">Todas as turmas</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-status">Status:</label>
+                        <select id="filter-status" class="filter-select" aria-label="Filtrar por status">
+                            <option value="">Todos os status</option>
+                            <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                        </select>
+                    </div>
+                    
+                    <button type="button" id="clear-filters" class="btn btn-secondary">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                        Limpar Filtros
+                    </button>
+                </form>
+            </section>
+
+            <!-- Seção de Ações Rápidas -->
+            <section class="actions-section" aria-labelledby="actions-title">
+                <h2 id="actions-title" class="section-title">
+                    <i class="fas fa-bolt" aria-hidden="true"></i>
+                    Ações Rápidas
+                </h2>
+                
+                <div class="quick-actions">
+                    <button class="btn btn-primary" id="btn-novo-aluno">
+                        <i class="fas fa-user-plus" aria-hidden="true"></i>
+                        Novo Aluno
+                    </button>
+                    <button class="btn btn-secondary" id="btn-nova-turma">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        Nova Turma
+                    </button>
+                    <button class="btn btn-accent" id="btn-matricula">
+                        <i class="fas fa-user-graduate" aria-hidden="true"></i>
+                        Matrícula
+                    </button>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Coluna direita: Conteúdo principal -->
+        <section class="content-area" role="region" aria-label="Listagem principal">
+            <!-- Tab de Alunos -->
+            <div id="tab-alunos" class="tab-content active" role="tabpanel" aria-labelledby="alunos-tab">
+                <div class="content-header">
+                    <h2 class="content-title">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        Gerenciamento de Alunos
+                    </h2>
+                    
+                    <!-- Controles de ordenação -->
+                    <div class="sort-controls">
+                        <label for="sort-select" class="sr-only">Ordenar por</label>
+                        <select id="sort-select" class="sort-select" aria-label="Critério de ordenação">
+                            <option value="nome">Nome (A-Z)</option>
+                            <option value="nome-desc">Nome (Z-A)</option>
+                            <option value="idade">Idade (Menor)</option>
+                            <option value="idade-desc">Idade (Maior)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loading-alunos" class="loading" role="status" aria-label="Carregando alunos">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    Carregando alunos...
+                </div>
+                
+                <!-- Mensagem quando não há resultados -->
+                <div id="no-results" class="no-results" style="display: none;" role="status">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <p>Nenhum aluno encontrado com os filtros aplicados.</p>
+                </div>
+                
+                <!-- Tabela de alunos -->
+                <div class="table-container">
+                    <table id="alunos-table" class="data-table" role="table" aria-label="Lista de alunos">
+                        <caption class="sr-only">Tabela com informações dos alunos cadastrados</caption>
+                        <thead>
+                            <tr role="row">
+                                <th scope="col" tabindex="0">Nome</th>
+                                <th scope="col" tabindex="0">Idade</th>
+                                <th scope="col" tabindex="0">Email</th>
+                                <th scope="col" tabindex="0">Status</th>
+                                <th scope="col" tabindex="0">Turma</th>
+                                <th scope="col" tabindex="0" aria-label="Ações">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alunos-tbody">
+                            <!-- Conteúdo será inserido dinamicamente pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div class="table-container" role="region" aria-label="Lista de alunos">
-                <table>
-                    <caption>Lista de Alunos</caption>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Data de Nascimento</th>
-                            <th>Email</th>
-                            <th>Status</th>
-                            <th>Turma</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="alunosLista"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Seção de Turmas -->
-        <section id="turmas" class="section">
-            <div class="controls">
-                <button id="novaTurma" aria-label="Adicionar nova turma">Nova Turma</button>
-            </div>
-
-            <div class="table-container" role="region" aria-label="Lista de turmas">
-                <table>
-                    <caption>Lista de Turmas</caption>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Capacidade</th>
-                            <th>Ocupação</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="turmasLista"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Seção de Relatórios -->
-        <section id="relatorios" class="section">
-            <div class="report-options">
-                <h2>Exportar Dados</h2>
-                <button id="exportarAlunosCSV" aria-label="Exportar lista de alunos em CSV">
-                    Exportar Alunos (CSV)
-                </button>
-                <button id="exportarAlunosJSON" aria-label="Exportar lista de alunos em JSON">
-                    Exportar Alunos (JSON)
-                </button>
-            </div>
-
-            <div class="statistics" aria-live="polite">
-                <h2>Estatísticas</h2>
-                <div id="statsContainer"></div>
+            <!-- Tab de Turmas -->
+            <div id="tab-turmas" class="tab-content" role="tabpanel" aria-labelledby="turmas-tab">
+                <div class="content-header">
+                    <h2 class="content-title">
+                        <i class="fas fa-chalkboard" aria-hidden="true"></i>
+                        Gerenciamento de Turmas
+                    </h2>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loading-turmas" class="loading" role="status" aria-label="Carregando turmas">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    Carregando turmas...
+                </div>
+                
+                <!-- Grid de turmas -->
+                <div id="turmas-grid" class="turmas-grid">
+                    <!-- Conteúdo será inserido dinamicamente pelo JavaScript -->
+                </div>
             </div>
         </section>
     </main>
 
-    <!-- Modal de Aluno -->
-    <dialog id="alunoModal" aria-labelledby="modalTitle">
-        <h2 id="modalTitle">Novo Aluno</h2>
-        <form id="alunoForm">
-            <div class="form-group">
-                <label for="nome">Nome:</label>
-                <input type="text" id="nome" name="nome" required 
-                       minlength="3" maxlength="80" 
-                       aria-describedby="nomeHelp">
-                <small id="nomeHelp">Entre 3 e 80 caracteres</small>
-            </div>
+    <!-- Modal para Novo Aluno -->
+    <div id="modal-aluno" class="modal" role="dialog" aria-labelledby="modal-aluno-title" aria-modal="true" style="display: none;">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 id="modal-aluno-title" class="modal-title">Novo Aluno</h3>
+                <button type="button" class="modal-close" aria-label="Fechar modal" tabindex="0">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            
+            <form id="form-aluno" class="modal-form" novalidate>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="aluno-nome" class="required">Nome:</label>
+                        <input 
+                            type="text" 
+                            id="aluno-nome" 
+                            name="nome" 
+                            required 
+                            minlength="3" 
+                            maxlength="80"
+                            aria-describedby="nome-error"
+                            class="form-input"
+                        >
+                        <div id="nome-error" class="error-message" role="alert" aria-live="polite"></div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="aluno-nascimento" class="required">Data de Nascimento:</label>
+                        <input 
+                            type="date" 
+                            id="aluno-nascimento" 
+                            name="data_nascimento" 
+                            required
+                            aria-describedby="nascimento-error"
+                            class="form-input"
+                        >
+                        <div id="nascimento-error" class="error-message" role="alert" aria-live="polite"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="aluno-email">Email:</label>
+                        <input 
+                            type="email" 
+                            id="aluno-email" 
+                            name="email"
+                            aria-describedby="email-error"
+                            class="form-input"
+                        >
+                        <div id="email-error" class="error-message" role="alert" aria-live="polite"></div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="aluno-status" class="required">Status:</label>
+                        <select id="aluno-status" name="status" required class="form-select">
+                            <option value="inativo">Inativo</option>
+                            <option value="ativo">Ativo</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="aluno-turma">Turma:</label>
+                        <select id="aluno-turma" name="turma_id" class="form-select">
+                            <option value="">Sem turma</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancelar-aluno">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        Salvar Aluno
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            <div class="form-group">
-                <label for="dataNascimento">Data de Nascimento:</label>
-                <input type="date" id="dataNascimento" name="dataNascimento" 
-                       required aria-describedby="dataHelp">
-                <small id="dataHelp">Mínimo 5 anos de idade</small>
-            </div>
+    <!-- Modal para Nova Turma -->
+    <div id="modal-turma" class="modal" role="dialog" aria-labelledby="modal-turma-title" aria-modal="true" style="display: none;">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 id="modal-turma-title" class="modal-title">Nova Turma</h3>
+                <button type="button" class="modal-close" aria-label="Fechar modal">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            
+            <form id="form-turma" class="modal-form" novalidate>
+                <div class="form-group">
+                    <label for="turma-nome" class="required">Nome da Turma:</label>
+                    <input 
+                        type="text" 
+                        id="turma-nome" 
+                        name="nome" 
+                        required 
+                        maxlength="100"
+                        aria-describedby="turma-nome-error"
+                        class="form-input"
+                        placeholder="Ex: 1º Ano A - Manhã"
+                    >
+                    <div id="turma-nome-error" class="error-message" role="alert" aria-live="polite"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="turma-capacidade" class="required">Capacidade:</label>
+                    <input 
+                        type="number" 
+                        id="turma-capacidade" 
+                        name="capacidade" 
+                        required 
+                        min="1" 
+                        max="50"
+                        aria-describedby="turma-capacidade-error"
+                        class="form-input"
+                        placeholder="Ex: 25"
+                    >
+                    <div id="turma-capacidade-error" class="error-message" role="alert" aria-live="polite"></div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancelar-turma">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        Salvar Turma
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" 
-                       aria-describedby="emailHelp">
-                <small id="emailHelp">Opcional</small>
-            </div>
+    <!-- Modal para Matrícula -->
+    <div id="modal-matricula" class="modal" role="dialog" aria-labelledby="modal-matricula-title" aria-modal="true" style="display: none;">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 id="modal-matricula-title" class="modal-title">Nova Matrícula</h3>
+                <button type="button" class="modal-close" aria-label="Fechar modal">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            
+            <form id="form-matricula" class="modal-form" novalidate>
+                <div class="form-group">
+                    <label for="matricula-aluno" class="required">Aluno:</label>
+                    <select id="matricula-aluno" name="aluno_id" required class="form-select">
+                        <option value="">Selecione um aluno</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="matricula-turma" class="required">Turma:</label>
+                    <select id="matricula-turma" name="turma_id" required class="form-select">
+                        <option value="">Selecione uma turma</option>
+                    </select>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancelar-matricula">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-accent">
+                        <i class="fas fa-user-graduate" aria-hidden="true"></i>
+                        Matricular
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            <div class="form-group">
-                <label for="status">Status:</label>
-                <select id="status" name="status" required>
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                </select>
-            </div>
+    <!-- Area para mensagens de feedback -->
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-label="Mensagens do sistema">
+        <!-- Toasts serão inseridos aqui dinamicamente -->
+    </div>
 
-            <div class="form-group">
-                <label for="turma">Turma:</label>
-                <select id="turma" name="turma" aria-describedby="turmaHelp">
-                    <option value="">Sem turma</option>
-                </select>
-                <small id="turmaHelp">Opcional</small>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" aria-label="Salvar aluno">Salvar</button>
-                <button type="button" class="close-modal" 
-                        aria-label="Cancelar e fechar">Cancelar</button>
-            </div>
-        </form>
-    </dialog>
-
-    <!-- Modal de Turma -->
-    <dialog id="turmaModal" aria-labelledby="turmaModalTitle">
-        <h2 id="turmaModalTitle">Nova Turma</h2>
-        <form id="turmaForm">
-            <div class="form-group">
-                <label for="nomeTurma">Nome:</label>
-                <input type="text" id="nomeTurma" name="nomeTurma" required 
-                       maxlength="80" aria-describedby="nomeTurmaHelp">
-                <small id="nomeTurmaHelp">Máximo 80 caracteres</small>
-            </div>
-
-            <div class="form-group">
-                <label for="capacidade">Capacidade:</label>
-                <input type="number" id="capacidade" name="capacidade" 
-                       required min="1" aria-describedby="capacidadeHelp">
-                <small id="capacidadeHelp">Mínimo 1 aluno</small>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" aria-label="Salvar turma">Salvar</button>
-                <button type="button" class="close-modal" 
-                        aria-label="Cancelar e fechar">Cancelar</button>
-            </div>
-        </form>
-    </dialog>
-
+    <!-- Script principal -->
     <script src="scripts.js"></script>
 </body>
 </html>

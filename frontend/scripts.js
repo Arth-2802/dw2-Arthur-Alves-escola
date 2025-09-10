@@ -1,413 +1,1085 @@
-// Configurações da API
-const API_URL = 'http://localhost:8000';
+/**
+ * SISTEMA DE GESTÃO ESCOLAR - JAVASCRIPT
+ * 
+ * Este arquivo contém toda a lógica frontend do sistema:
+ * - Comunicação com API REST
+ * - Manipulação do DOM
+ * - Validações de formulário
+ * - Filtros e busca em tempo real
+ * - Acessibilidade e navegação por teclado
+ * - Gerenciamento de estado da aplicação
+ */
 
-// Cache de dados
-let currentSection = 'alunos';
-let alunosList = [];
-let turmasList = [];
+// ===== CONFIGURAÇÃO DA API =====
+const API_BASE_URL = 'http://localhost:8001';
 
-// Elementos do DOM
-const sections = document.querySelectorAll('.section');
-const navButtons = document.querySelectorAll('.nav-button');
-const alunoModal = document.getElementById('alunoModal');
-const turmaModal = document.getElementById('turmaModal');
-const alunoForm = document.getElementById('alunoForm');
-const turmaForm = document.getElementById('turmaForm');
+// ===== ESTADO DA APLICAÇÃO =====
+let appState = {
+    alunos: [],
+    turmas: [],
+    filtros: {
+        search: '',
+        turma_id: '',
+        status: ''
+    },
+    ordenacao: 'nome',
+    tabAtiva: 'alunos'
+};
 
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
-    loadInitialData();
-    setupEventListeners();
-});
+// ===== UTILITÁRIOS =====
 
-function setupEventListeners() {
-    // Navegação
-    navButtons.forEach(button => {
-        button.addEventListener('click', () => switchSection(button.dataset.section));
-    });
-
-    // Filtros
-    document.getElementById('filtroTurma').addEventListener('change', filterAlunos);
-    document.getElementById('filtroStatus').addEventListener('change', filterAlunos);
-    document.getElementById('busca').addEventListener('input', filterAlunos);
-
-    // Modais
-    document.getElementById('novoAluno').addEventListener('click', () => openAlunoModal());
-    document.getElementById('novaTurma').addEventListener('click', () => openTurmaModal());
-    
-    // Formulários
-    alunoForm.addEventListener('submit', handleAlunoSubmit);
-    turmaForm.addEventListener('submit', handleTurmaSubmit);
-    
-    // Botões de fechar modal
-    document.querySelectorAll('.close-modal').forEach(button => {
-        button.addEventListener('click', () => {
-            alunoModal.close();
-            turmaModal.close();
-        });
-    });
-
-    // Exportação
-    document.getElementById('exportarAlunosCSV').addEventListener('click', () => exportarAlunos('csv'));
-    document.getElementById('exportarAlunosJSON').addEventListener('click', () => exportarAlunos('json'));
-}
-
-// Funções de carregamento de dados
-async function loadInitialData() {
+/**
+ * Faz requisição HTTP para a API
+ * @param {string} url - URL do endpoint
+ * @param {Object} options - Opções da requisição
+ * @returns {Promise} - Resposta da API
+ */
+async function apiRequest(url, options = {}) {
     try {
-        await Promise.all([loadTurmas(), loadAlunos()]);
-        updateStats();
-    } catch (error) {
-        showError('Erro ao carregar dados iniciais');
-        console.error(error);
-    }
-}
-
-async function loadTurmas() {
-    const response = await fetch(`${API_URL}/turmas`);
-    turmasList = await response.json();
-    updateTurmasTable();
-    updateTurmasSelect();
-}
-
-async function loadAlunos() {
-    const response = await fetch(`${API_URL}/alunos`);
-    alunosList = await response.json();
-    updateAlunosTable();
-}
-
-// Funções de atualização da UI
-function switchSection(sectionId) {
-    currentSection = sectionId;
-    sections.forEach(section => {
-        section.classList.toggle('active', section.id === sectionId);
-    });
-    navButtons.forEach(button => {
-        button.classList.toggle('active', button.dataset.section === sectionId);
-    });
-}
-
-function updateTurmasTable() {
-    const tbody = document.getElementById('turmasLista');
-    tbody.innerHTML = turmasList.map(turma => `
-        <tr>
-            <td>${escapeHtml(turma.nome)}</td>
-            <td>${turma.capacidade}</td>
-            <td>${turma.ocupacao} / ${turma.capacidade}</td>
-            <td>
-                <button onclick="deleteTurma(${turma.id})" 
-                        aria-label="Deletar turma ${turma.nome}">
-                    Deletar
-                </button>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function updateAlunosTable(filteredAlunos = alunosList) {
-    const tbody = document.getElementById('alunosLista');
-    tbody.innerHTML = filteredAlunos.map(aluno => `
-        <tr>
-            <td>${escapeHtml(aluno.nome)}</td>
-            <td>${formatDate(aluno.data_nascimento)}</td>
-            <td>${aluno.email ? escapeHtml(aluno.email) : '-'}</td>
-            <td>${aluno.status}</td>
-            <td>${getTurmaNome(aluno.turma_id)}</td>
-            <td>
-                <button onclick="editAluno(${aluno.id})" 
-                        aria-label="Editar aluno ${aluno.nome}">
-                    Editar
-                </button>
-                <button onclick="deleteAluno(${aluno.id})"
-                        aria-label="Deletar aluno ${aluno.nome}">
-                    Deletar
-                </button>
-                ${!aluno.turma_id ? `
-                    <button onclick="showMatriculaDialog(${aluno.id})"
-                            aria-label="Matricular aluno ${aluno.nome}">
-                        Matricular
-                    </button>
-                ` : ''}
-            </td>
-        </tr>
-    `).join('');
-}
-
-function updateTurmasSelect() {
-    const turmaSelects = document.querySelectorAll('#filtroTurma, #turma');
-    const options = ['<option value="">Todas as turmas</option>'];
-    
-    turmasList.forEach(turma => {
-        options.push(`<option value="${turma.id}">${escapeHtml(turma.nome)}</option>`);
-    });
-    
-    turmaSelects.forEach(select => {
-        select.innerHTML = options.join('');
-    });
-}
-
-// Funções de filtragem
-function filterAlunos() {
-    const turmaId = document.getElementById('filtroTurma').value;
-    const status = document.getElementById('filtroStatus').value;
-    const busca = document.getElementById('busca').value.toLowerCase();
-    
-    const filteredAlunos = alunosList.filter(aluno => {
-        const matchTurma = !turmaId || aluno.turma_id === parseInt(turmaId);
-        const matchStatus = !status || aluno.status === status;
-        const matchBusca = !busca || aluno.nome.toLowerCase().includes(busca);
-        
-        return matchTurma && matchStatus && matchBusca;
-    });
-    
-    updateAlunosTable(filteredAlunos);
-}
-
-// Funções de manipulação de alunos
-async function handleAlunoSubmit(event) {
-    event.preventDefault();
-    
-    const formData = new FormData(alunoForm);
-    const dataNascimento = new Date(formData.get('dataNascimento'));
-    const alunoData = {
-        nome: formData.get('nome'),
-        data_nascimento: dataNascimento.toISOString().split('T')[0],
-        email: formData.get('email') || null,
-        status: formData.get('status'),
-        turma_id: formData.get('turma') ? parseInt(formData.get('turma')) : null
-    };
-    
-    try {
-        const method = alunoForm.dataset.id ? 'PUT' : 'POST';
-        const url = `${API_URL}/alunos${alunoForm.dataset.id ? `/${alunoForm.dataset.id}` : ''}`;
-        
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(alunoData)
+        const response = await fetch(`${API_BASE_URL}${url}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            },
+            ...options
         });
-        
+
+        const data = await response.json();
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Erro ao salvar aluno');
+            throw new Error(data.detail || `Erro ${response.status}`);
         }
-        
-        await loadAlunos();
-        alunoModal.close();
-        showSuccess('Aluno salvo com sucesso');
+
+        return data;
     } catch (error) {
-        showError(error.message);
-        console.error(error);
+        console.error('Erro na API:', error);
+        throw error;
     }
 }
 
-function openAlunoModal(aluno = null) {
-    const title = document.getElementById('modalTitle');
-    title.textContent = aluno ? 'Editar Aluno' : 'Novo Aluno';
+/**
+ * Exibe notificação toast
+ * @param {string} message - Mensagem a ser exibida
+ * @param {string} type - Tipo: success, error, warning, info
+ * @param {number} duration - Duração em ms (default: 5000)
+ */
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
     
-    if (aluno) {
-        alunoForm.dataset.id = aluno.id;
-        document.getElementById('nome').value = aluno.nome;
-        // Formata a data no formato YYYY-MM-DD para o input date
-        const date = new Date(aluno.data_nascimento);
-        date.setDate(date.getDate() + 1);
-        document.getElementById('dataNascimento').value = date.toISOString().split('T')[0];
-        document.getElementById('email').value = aluno.email || '';
-        document.getElementById('status').value = aluno.status;
-        document.getElementById('turma').value = aluno.turma_id || '';
-    } else {
-        alunoForm.dataset.id = '';
-        alunoForm.reset();
-    }
-    
-    alunoModal.showModal();
-}
-
-async function editAluno(id) {
-    try {
-        const aluno = alunosList.find(a => a.id === id);
-        if (!aluno) {
-            throw new Error('Aluno não encontrado');
-        }
-        openAlunoModal(aluno);
-    } catch (error) {
-        showError(error.message);
-        console.error(error);
-    }
-}
-
-async function deleteAluno(id) {
-    if (!confirm('Tem certeza que deseja deletar este aluno?')) return;
-    
-    try {
-        const response = await fetch(`${API_URL}/alunos/${id}`, {
-            method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Erro ao deletar aluno');
-        
-        await loadAlunos();
-        showSuccess('Aluno deletado com sucesso');
-    } catch (error) {
-        showError('Erro ao deletar aluno');
-        console.error(error);
-    }
-}
-
-// Funções de manipulação de turmas
-async function handleTurmaSubmit(event) {
-    event.preventDefault();
-    
-    const formData = new FormData(turmaForm);
-    const turmaData = {
-        nome: formData.get('nomeTurma'),
-        capacidade: parseInt(formData.get('capacidade'))
+    const icons = {
+        success: 'fas fa-check-circle',
+        error: 'fas fa-exclamation-circle',
+        warning: 'fas fa-exclamation-triangle',
+        info: 'fas fa-info-circle'
     };
-    
-    try {
-        const response = await fetch(`${API_URL}/turmas`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(turmaData)
-        });
-        
-        if (!response.ok) throw new Error('Erro ao salvar turma');
-        
-        await loadTurmas();
-        turmaModal.close();
-        showSuccess('Turma salva com sucesso');
-    } catch (error) {
-        showError('Erro ao salvar turma');
-        console.error(error);
-    }
-}
 
-function openTurmaModal() {
-    turmaForm.reset();
-    turmaModal.showModal();
-}
-
-// Funções de matrícula
-async function showMatriculaDialog(alunoId) {
-    const turma = prompt('Digite o ID da turma para matricular o aluno:');
-    if (!turma) return;
-    
-    try {
-        const response = await fetch(`${API_URL}/matriculas`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                aluno_id: alunoId, 
-                turma_id: parseInt(turma) 
-            })
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Erro ao matricular aluno');
-        }
-        
-        await Promise.all([loadAlunos(), loadTurmas()]);
-        showSuccess('Aluno matriculado com sucesso');
-    } catch (error) {
-        showError(error.message);
-        console.error(error);
-    }
-}
-
-// Funções de exportação
-function exportarAlunos(format) {
-    const dados = alunosList.map(aluno => ({
-        nome: aluno.nome,
-        data_nascimento: aluno.data_nascimento,
-        email: aluno.email || '',
-        status: aluno.status,
-        turma: getTurmaNome(aluno.turma_id)
-    }));
-    
-    if (format === 'csv') {
-        const headers = ['Nome', 'Data de Nascimento', 'Email', 'Status', 'Turma'];
-        const csv = [
-            headers.join(','),
-            ...dados.map(row => Object.values(row).join(','))
-        ].join('\n');
-        
-        downloadFile('alunos.csv', csv);
-    } else {
-        downloadFile('alunos.json', JSON.stringify(dados, null, 2));
-    }
-}
-
-// Funções de estatísticas
-function updateStats() {
-    const stats = {
-        total: alunosList.length,
-        ativos: alunosList.filter(a => a.status === 'ativo').length,
-        inativos: alunosList.filter(a => a.status === 'inativo').length,
-        porTurma: {}
+    const titles = {
+        success: 'Sucesso',
+        error: 'Erro',
+        warning: 'Atenção',
+        info: 'Informação'
     };
-    
-    turmasList.forEach(turma => {
-        stats.porTurma[turma.nome] = alunosList.filter(a => a.turma_id === turma.id).length;
-    });
-    
-    const statsContainer = document.getElementById('statsContainer');
-    statsContainer.innerHTML = `
-        <div class="stat-item">
-            <h3>Total de Alunos</h3>
-            <p>${stats.total}</p>
+
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i class="toast-icon ${icons[type]}" aria-hidden="true"></i>
+        <div class="toast-content">
+            <div class="toast-title">${titles[type]}</div>
+            <div class="toast-message">${message}</div>
         </div>
-        <div class="stat-item">
-            <h3>Alunos Ativos</h3>
-            <p>${stats.ativos}</p>
-        </div>
-        <div class="stat-item">
-            <h3>Alunos Inativos</h3>
-            <p>${stats.inativos}</p>
-        </div>
-        <div class="stat-item">
-            <h3>Alunos por Turma</h3>
-            ${Object.entries(stats.porTurma).map(([turma, quantidade]) => 
-                `<p>${escapeHtml(turma)}: ${quantidade}</p>`
-            ).join('')}
-        </div>
+        <button class="toast-close" aria-label="Fechar notificação">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
     `;
+
+    // Adicionar evento de fechar
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.addEventListener('click', () => {
+        toast.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    });
+
+    container.appendChild(toast);
+
+    // Auto-remover após duração especificada
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.animation = 'fadeOut 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, duration);
 }
 
-// Funções auxiliares
-function getTurmaNome(turmaId) {
-    if (!turmaId) return '-';
-    const turma = turmasList.find(t => t.id === turmaId);
-    return turma ? escapeHtml(turma.nome) : '-';
-}
-
-function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    // Adiciona 1 dia para corrigir o timezone
-    date.setDate(date.getDate() + 1);
+/**
+ * Formatar data para exibição
+ * @param {string} dateString - Data em formato ISO
+ * @returns {string} - Data formatada
+ */
+function formatDate(dateString) {
+    const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR');
 }
 
-function downloadFile(filename, content) {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
+/**
+ * Calcular idade baseada na data de nascimento
+ * @param {string} birthDate - Data de nascimento
+ * @returns {number} - Idade em anos
+ */
+function calculateAge(birthDate) {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+    }
+    
+    return age;
 }
 
-function showSuccess(message) {
-    alert(message); // Pode ser melhorado com uma notificação mais elegante
+/**
+ * Sanitizar string para prevenir XSS
+ * @param {string} str - String a ser sanitizada
+ * @returns {string} - String sanitizada
+ */
+function sanitizeHTML(str) {
+    const temp = document.createElement('div');
+    temp.textContent = str;
+    return temp.innerHTML;
 }
 
-function showError(message) {
-    alert(`Erro: ${message}`); // Pode ser melhorado com uma notificação mais elegante
+// ===== VALIDAÇÕES =====
+
+/**
+ * Validar email
+ * @param {string} email - Email a ser validado
+ * @returns {boolean} - True se válido
+ */
+function isValidEmail(email) {
+    const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return regex.test(email);
 }
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+/**
+ * Validar idade mínima
+ * @param {string} birthDate - Data de nascimento
+ * @returns {boolean} - True se idade >= 5 anos
+ */
+function isValidAge(birthDate) {
+    return calculateAge(birthDate) >= 5;
 }
+
+/**
+ * Validar formulário de aluno
+ * @param {FormData} formData - Dados do formulário
+ * @returns {Object} - {isValid: boolean, errors: {}}
+ */
+function validateAlunoForm(formData) {
+    const errors = {};
+    let isValid = true;
+
+    // Nome (obrigatório, 3-80 caracteres)
+    const nome = formData.get('nome')?.trim();
+    if (!nome) {
+        errors.nome = 'Nome é obrigatório';
+        isValid = false;
+    } else if (nome.length < 3) {
+        errors.nome = 'Nome deve ter pelo menos 3 caracteres';
+        isValid = false;
+    } else if (nome.length > 80) {
+        errors.nome = 'Nome deve ter no máximo 80 caracteres';
+        isValid = false;
+    }
+
+    // Data de nascimento (obrigatória, idade >= 5 anos)
+    const dataNascimento = formData.get('data_nascimento');
+    if (!dataNascimento) {
+        errors.data_nascimento = 'Data de nascimento é obrigatória';
+        isValid = false;
+    } else if (!isValidAge(dataNascimento)) {
+        errors.data_nascimento = 'Aluno deve ter pelo menos 5 anos de idade';
+        isValid = false;
+    }
+
+    // Email (opcional, mas deve ser válido se fornecido)
+    const email = formData.get('email')?.trim();
+    if (email && !isValidEmail(email)) {
+        errors.email = 'Formato de email inválido';
+        isValid = false;
+    }
+
+    return { isValid, errors };
+}
+
+/**
+ * Exibir erros de validação no formulário
+ * @param {Object} errors - Objeto com erros por campo
+ */
+function displayFormErrors(errors) {
+    // Limpar erros anteriores
+    document.querySelectorAll('.error-message').forEach(el => {
+        el.textContent = '';
+    });
+    document.querySelectorAll('.form-input, .form-select').forEach(el => {
+        el.classList.remove('error');
+    });
+
+    // Exibir novos erros
+    Object.entries(errors).forEach(([field, message]) => {
+        const errorElement = document.getElementById(`${field.replace('_', '-')}-error`);
+        const inputElement = document.getElementById(`aluno-${field.replace('_', '-')}`);
+        
+        if (errorElement) {
+            errorElement.textContent = message;
+        }
+        if (inputElement) {
+            inputElement.classList.add('error');
+        }
+    });
+}
+
+// ===== GERENCIAMENTO DE MODAIS =====
+
+/**
+ * Abrir modal
+ * @param {string} modalId - ID do modal
+ */
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        
+        // Focar no primeiro elemento focável
+        const firstFocusable = modal.querySelector('input, select, button, textarea');
+        if (firstFocusable) {
+            setTimeout(() => firstFocusable.focus(), 100);
+        }
+
+        // Gerenciar foco no modal (trap focus)
+        modal.addEventListener('keydown', handleModalKeydown);
+    }
+}
+
+/**
+ * Fechar modal
+ * @param {string} modalId - ID do modal
+ */
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+        
+        // Limpar formulário se houver
+        const form = modal.querySelector('form');
+        if (form) {
+            form.reset();
+            // Limpar erros
+            modal.querySelectorAll('.error-message').forEach(el => {
+                el.textContent = '';
+            });
+            modal.querySelectorAll('.form-input, .form-select').forEach(el => {
+                el.classList.remove('error');
+            });
+        }
+
+        modal.removeEventListener('keydown', handleModalKeydown);
+    }
+}
+
+/**
+ * Gerenciar navegação por teclado no modal
+ * @param {KeyboardEvent} e - Evento de teclado
+ */
+function handleModalKeydown(e) {
+    if (e.key === 'Escape') {
+        const modal = e.currentTarget;
+        const modalId = modal.id;
+        closeModal(modalId);
+        return;
+    }
+
+    // Trap focus dentro do modal
+    if (e.key === 'Tab') {
+        const modal = e.currentTarget;
+        const focusableElements = modal.querySelectorAll(
+            'input, select, button, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+            if (document.activeElement === firstElement) {
+                lastElement.focus();
+                e.preventDefault();
+            }
+        } else {
+            if (document.activeElement === lastElement) {
+                firstElement.focus();
+                e.preventDefault();
+            }
+        }
+    }
+}
+
+// ===== OPERAÇÕES DE DADOS =====
+
+/**
+ * Carregar lista de alunos da API
+ */
+async function loadAlunos() {
+    try {
+        showLoading('alunos');
+        
+        const params = new URLSearchParams();
+        if (appState.filtros.search) params.append('search', appState.filtros.search);
+        if (appState.filtros.turma_id) params.append('turma_id', appState.filtros.turma_id);
+        if (appState.filtros.status) params.append('status', appState.filtros.status);
+
+        const queryString = params.toString();
+        const url = queryString ? `/alunos?${queryString}` : '/alunos';
+        
+        appState.alunos = await apiRequest(url);
+        
+        // Aplicar ordenação
+        sortAlunos(appState.ordenacao);
+        
+        renderAlunos();
+        updateStatistics();
+        
+    } catch (error) {
+        showToast(`Erro ao carregar alunos: ${error.message}`, 'error');
+        hideLoading('alunos');
+    }
+}
+
+/**
+ * Carregar lista de turmas da API
+ */
+async function loadTurmas() {
+    try {
+        showLoading('turmas');
+        
+        appState.turmas = await apiRequest('/turmas');
+        
+        renderTurmas();
+        updateTurmaSelects();
+        updateStatistics();
+        
+    } catch (error) {
+        showToast(`Erro ao carregar turmas: ${error.message}`, 'error');
+        hideLoading('turmas');
+    }
+}
+
+/**
+ * Criar novo aluno
+ * @param {Object} alunoData - Dados do aluno
+ */
+async function createAluno(alunoData) {
+    try {
+        await apiRequest('/alunos', {
+            method: 'POST',
+            body: JSON.stringify(alunoData)
+        });
+
+        showToast('Aluno criado com sucesso!', 'success');
+        closeModal('modal-aluno');
+        loadAlunos();
+        
+    } catch (error) {
+        showToast(`Erro ao criar aluno: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Atualizar aluno existente
+ * @param {number} id - ID do aluno
+ * @param {Object} alunoData - Dados atualizados
+ */
+async function updateAluno(id, alunoData) {
+    try {
+        await apiRequest(`/alunos/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(alunoData)
+        });
+
+        showToast('Aluno atualizado com sucesso!', 'success');
+        closeModal('modal-aluno');
+        loadAlunos();
+        
+    } catch (error) {
+        showToast(`Erro ao atualizar aluno: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Excluir aluno
+ * @param {number} id - ID do aluno
+ */
+async function deleteAluno(id) {
+    if (!confirm('Tem certeza que deseja excluir este aluno?')) {
+        return;
+    }
+
+    try {
+        await apiRequest(`/alunos/${id}`, {
+            method: 'DELETE'
+        });
+
+        showToast('Aluno excluído com sucesso!', 'success');
+        loadAlunos();
+        
+    } catch (error) {
+        showToast(`Erro ao excluir aluno: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Criar nova turma
+ * @param {Object} turmaData - Dados da turma
+ */
+async function createTurma(turmaData) {
+    try {
+        await apiRequest('/turmas', {
+            method: 'POST',
+            body: JSON.stringify(turmaData)
+        });
+
+        showToast('Turma criada com sucesso!', 'success');
+        closeModal('modal-turma');
+        loadTurmas();
+        
+    } catch (error) {
+        showToast(`Erro ao criar turma: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Matricular aluno em turma
+ * @param {Object} matriculaData - Dados da matrícula
+ */
+async function matricularAluno(matriculaData) {
+    try {
+        await apiRequest('/matriculas', {
+            method: 'POST',
+            body: JSON.stringify(matriculaData)
+        });
+
+        showToast('Aluno matriculado com sucesso!', 'success');
+        closeModal('modal-matricula');
+        
+        // Recarregar dados
+        loadAlunos();
+        loadTurmas();
+        
+    } catch (error) {
+        showToast(`Erro ao matricular aluno: ${error.message}`, 'error');
+    }
+}
+
+// ===== RENDERIZAÇÃO =====
+
+/**
+ * Exibir indicador de carregamento
+ * @param {string} section - Seção (alunos ou turmas)
+ */
+function showLoading(section) {
+    const loadingElement = document.getElementById(`loading-${section}`);
+    if (loadingElement) {
+        loadingElement.style.display = 'flex';
+    }
+    
+    // Ocultar conteúdo
+    const contentElement = section === 'alunos' 
+        ? document.querySelector('.table-container')
+        : document.getElementById('turmas-grid');
+    
+    if (contentElement) {
+        contentElement.style.display = 'none';
+    }
+}
+
+/**
+ * Ocultar indicador de carregamento
+ * @param {string} section - Seção (alunos ou turmas)
+ */
+function hideLoading(section) {
+    const loadingElement = document.getElementById(`loading-${section}`);
+    if (loadingElement) {
+        loadingElement.style.display = 'none';
+    }
+    
+    // Mostrar conteúdo
+    const contentElement = section === 'alunos' 
+        ? document.querySelector('.table-container')
+        : document.getElementById('turmas-grid');
+    
+    if (contentElement) {
+        contentElement.style.display = 'block';
+    }
+}
+
+/**
+ * Renderizar lista de alunos
+ */
+function renderAlunos() {
+    const tbody = document.getElementById('alunos-tbody');
+    const noResults = document.getElementById('no-results');
+    
+    hideLoading('alunos');
+    
+    if (!appState.alunos || appState.alunos.length === 0) {
+        tbody.innerHTML = '';
+        noResults.style.display = 'block';
+        document.querySelector('.table-container').style.display = 'none';
+        return;
+    }
+    
+    noResults.style.display = 'none';
+    document.querySelector('.table-container').style.display = 'block';
+    
+    tbody.innerHTML = appState.alunos.map(aluno => `
+        <tr>
+            <td>
+                <strong>${sanitizeHTML(aluno.nome)}</strong>
+            </td>
+            <td>${aluno.idade || calculateAge(aluno.data_nascimento)} anos</td>
+            <td>${aluno.email ? sanitizeHTML(aluno.email) : '<span style="color: var(--gray-400);">Não informado</span>'}</td>
+            <td>
+                <span class="status-badge ${aluno.status}">
+                    ${aluno.status}
+                </span>
+            </td>
+            <td>${aluno.turma_nome ? sanitizeHTML(aluno.turma_nome) : '<span style="color: var(--gray-400);">Sem turma</span>'}</td>
+            <td>
+                <div class="actions">
+                    <button 
+                        class="btn btn-sm btn-secondary" 
+                        onclick="editAluno(${aluno.id})"
+                        aria-label="Editar aluno ${sanitizeHTML(aluno.nome)}"
+                    >
+                        <i class="fas fa-edit" aria-hidden="true"></i>
+                    </button>
+                    <button 
+                        class="btn btn-sm btn-danger" 
+                        onclick="deleteAluno(${aluno.id})"
+                        aria-label="Excluir aluno ${sanitizeHTML(aluno.nome)}"
+                    >
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+/**
+ * Renderizar grid de turmas
+ */
+function renderTurmas() {
+    const grid = document.getElementById('turmas-grid');
+    
+    hideLoading('turmas');
+    
+    if (!appState.turmas || appState.turmas.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: var(--spacing-16); color: var(--gray-500);">
+                <i class="fas fa-chalkboard" style="font-size: var(--font-size-3xl); margin-bottom: var(--spacing-4);"></i>
+                <p>Nenhuma turma cadastrada ainda.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = appState.turmas.map(turma => {
+        const ocupacaoPercent = turma.capacidade > 0 ? (turma.ocupacao / turma.capacidade) * 100 : 0;
+        let progressClass = '';
+        
+        if (ocupacaoPercent >= 90) {
+            progressClass = 'danger';
+        } else if (ocupacaoPercent >= 75) {
+            progressClass = 'warning';
+        }
+        
+        return `
+            <div class="turma-card">
+                <div class="turma-card-header">
+                    <h3 class="turma-nome">${sanitizeHTML(turma.nome)}</h3>
+                    <span class="turma-ocupacao">
+                        ${turma.ocupacao}/${turma.capacidade}
+                    </span>
+                </div>
+                
+                <div class="turma-info">
+                    <div class="info-item">
+                        <div class="info-value">${turma.capacidade}</div>
+                        <div class="info-label">Capacidade</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-value">${turma.ocupacao}</div>
+                        <div class="info-label">Matriculados</div>
+                    </div>
+                </div>
+                
+                <div class="progress-bar">
+                    <div 
+                        class="progress-fill ${progressClass}" 
+                        style="width: ${ocupacaoPercent}%"
+                        role="progressbar"
+                        aria-valuenow="${turma.ocupacao}"
+                        aria-valuemin="0"
+                        aria-valuemax="${turma.capacidade}"
+                        aria-label="Ocupação da turma: ${turma.ocupacao} de ${turma.capacidade} alunos"
+                    ></div>
+                </div>
+                
+                <div style="text-align: center; margin-top: var(--spacing-4); font-size: var(--font-size-sm); color: var(--gray-600);">
+                    ${ocupacaoPercent.toFixed(1)}% ocupada
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Atualizar estatísticas exibidas na sidebar
+ */
+function updateStatistics() {
+    const totalAlunosEl = document.getElementById('total-alunos');
+    const alunosAtivosEl = document.getElementById('alunos-ativos');
+    const totalTurmasEl = document.getElementById('total-turmas');
+    
+    if (totalAlunosEl) {
+        totalAlunosEl.textContent = appState.alunos ? appState.alunos.length : 0;
+    }
+    
+    if (alunosAtivosEl) {
+        const ativos = appState.alunos ? appState.alunos.filter(a => a.status === 'ativo').length : 0;
+        alunosAtivosEl.textContent = ativos;
+    }
+    
+    if (totalTurmasEl) {
+        totalTurmasEl.textContent = appState.turmas ? appState.turmas.length : 0;
+    }
+}
+
+/**
+ * Atualizar selects de turma nos formulários
+ */
+function updateTurmaSelects() {
+    const selects = [
+        document.getElementById('filter-turma'),
+        document.getElementById('aluno-turma'),
+        document.getElementById('matricula-turma')
+    ];
+    
+    selects.forEach(select => {
+        if (!select) return;
+        
+        // Manter opção padrão
+        const defaultOption = select.querySelector('option[value=""]');
+        select.innerHTML = '';
+        if (defaultOption) {
+            select.appendChild(defaultOption);
+        }
+        
+        // Adicionar turmas
+        appState.turmas.forEach(turma => {
+            const option = document.createElement('option');
+            option.value = turma.id;
+            option.textContent = turma.nome;
+            select.appendChild(option);
+        });
+    });
+}
+
+/**
+ * Atualizar select de alunos para matrícula
+ */
+function updateAlunosSelect() {
+    const select = document.getElementById('matricula-aluno');
+    if (!select) return;
+    
+    // Manter opção padrão
+    select.innerHTML = '<option value="">Selecione um aluno</option>';
+    
+    // Adicionar apenas alunos inativos ou sem turma
+    const alunosDisponiveis = appState.alunos.filter(aluno => 
+        aluno.status === 'inativo' || !aluno.turma_id
+    );
+    
+    alunosDisponiveis.forEach(aluno => {
+        const option = document.createElement('option');
+        option.value = aluno.id;
+        option.textContent = `${aluno.nome} (${aluno.idade || calculateAge(aluno.data_nascimento)} anos)`;
+        select.appendChild(option);
+    });
+}
+
+// ===== FILTROS E ORDENAÇÃO =====
+
+/**
+ * Aplicar filtros aos alunos
+ */
+function applyFilters() {
+    loadAlunos(); // Recarregar com novos filtros
+}
+
+/**
+ * Limpar todos os filtros
+ */
+function clearFilters() {
+    appState.filtros = {
+        search: '',
+        turma_id: '',
+        status: ''
+    };
+    
+    // Limpar campos de filtro
+    document.getElementById('search-input').value = '';
+    document.getElementById('filter-turma').value = '';
+    document.getElementById('filter-status').value = '';
+    
+    // Recarregar alunos
+    loadAlunos();
+}
+
+/**
+ * Ordenar array de alunos
+ * @param {string} criteria - Critério de ordenação
+ */
+function sortAlunos(criteria) {
+    if (!appState.alunos) return;
+    
+    appState.alunos.sort((a, b) => {
+        switch (criteria) {
+            case 'nome':
+                return a.nome.localeCompare(b.nome);
+            case 'nome-desc':
+                return b.nome.localeCompare(a.nome);
+            case 'idade':
+                const idadeA = a.idade || calculateAge(a.data_nascimento);
+                const idadeB = b.idade || calculateAge(b.data_nascimento);
+                return idadeA - idadeB;
+            case 'idade-desc':
+                const idadeA2 = a.idade || calculateAge(a.data_nascimento);
+                const idadeB2 = b.idade || calculateAge(b.data_nascimento);
+                return idadeB2 - idadeA2;
+            default:
+                return 0;
+        }
+    });
+}
+
+// ===== OPERAÇÕES DE EDIÇÃO =====
+
+/**
+ * Abrir modal para editar aluno
+ * @param {number} id - ID do aluno
+ */
+function editAluno(id) {
+    const aluno = appState.alunos.find(a => a.id === id);
+    if (!aluno) {
+        showToast('Aluno não encontrado', 'error');
+        return;
+    }
+    
+    // Preencher formulário
+    document.getElementById('aluno-nome').value = aluno.nome;
+    document.getElementById('aluno-nascimento').value = aluno.data_nascimento;
+    document.getElementById('aluno-email').value = aluno.email || '';
+    document.getElementById('aluno-status').value = aluno.status;
+    document.getElementById('aluno-turma').value = aluno.turma_id || '';
+    
+    // Alterar título do modal
+    document.getElementById('modal-aluno-title').textContent = 'Editar Aluno';
+    
+    // Marcar formulário como edição
+    const form = document.getElementById('form-aluno');
+    form.dataset.mode = 'edit';
+    form.dataset.id = id;
+    
+    openModal('modal-aluno');
+}
+
+// ===== GERENCIAMENTO DE TABS =====
+
+/**
+ * Alternar entre tabs
+ * @param {string} tabName - Nome da tab
+ */
+function switchTab(tabName) {
+    // Atualizar estado
+    appState.tabAtiva = tabName;
+    
+    // Atualizar botões de tab
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        const isActive = btn.dataset.tab === tabName;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive);
+    });
+    
+    // Atualizar conteúdo das tabs
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${tabName}`);
+    });
+    
+    // Carregar dados se necessário
+    if (tabName === 'alunos' && !appState.alunos.length) {
+        loadAlunos();
+    } else if (tabName === 'turmas' && !appState.turmas.length) {
+        loadTurmas();
+    }
+}
+
+// ===== EVENT LISTENERS =====
+
+/**
+ * Inicializar todos os event listeners
+ */
+function initEventListeners() {
+    // === NAVEGAÇÃO POR TABS ===
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.tab);
+        });
+    });
+    
+    // === BUSCA ===
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.querySelector('.search-btn');
+    
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            appState.filtros.search = e.target.value.trim();
+            applyFilters();
+        }, 300); // Debounce de 300ms
+    });
+    
+    searchBtn.addEventListener('click', () => {
+        appState.filtros.search = searchInput.value.trim();
+        applyFilters();
+    });
+    
+    // Busca ao pressionar Enter
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            appState.filtros.search = e.target.value.trim();
+            applyFilters();
+        }
+    });
+    
+    // === FILTROS ===
+    document.getElementById('filter-turma').addEventListener('change', (e) => {
+        appState.filtros.turma_id = e.target.value;
+        applyFilters();
+    });
+    
+    document.getElementById('filter-status').addEventListener('change', (e) => {
+        appState.filtros.status = e.target.value;
+        applyFilters();
+    });
+    
+    document.getElementById('clear-filters').addEventListener('click', clearFilters);
+    
+    // === ORDENAÇÃO ===
+    document.getElementById('sort-select').addEventListener('change', (e) => {
+        appState.ordenacao = e.target.value;
+        sortAlunos(appState.ordenacao);
+        renderAlunos();
+    });
+    
+    // === BOTÕES DE AÇÃO ===
+    document.getElementById('btn-novo-aluno').addEventListener('click', () => {
+        // Resetar formulário para modo criação
+        const form = document.getElementById('form-aluno');
+        form.dataset.mode = 'create';
+        delete form.dataset.id;
+        document.getElementById('modal-aluno-title').textContent = 'Novo Aluno';
+        
+        openModal('modal-aluno');
+    });
+    
+    document.getElementById('btn-nova-turma').addEventListener('click', () => {
+        openModal('modal-turma');
+    });
+    
+    document.getElementById('btn-matricula').addEventListener('click', () => {
+        updateAlunosSelect(); // Atualizar lista de alunos disponíveis
+        openModal('modal-matricula');
+    });
+    
+    // === MODAIS - FECHAR ===
+    document.querySelectorAll('.modal-close, .modal-overlay').forEach(element => {
+        element.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal && (e.target.classList.contains('modal-close') || e.target.classList.contains('modal-overlay'))) {
+                closeModal(modal.id);
+            }
+        });
+    });
+    
+    document.querySelectorAll('[id^="btn-cancelar-"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) {
+                closeModal(modal.id);
+            }
+        });
+    });
+    
+    // === FORMULÁRIOS ===
+    
+    // Formulário de Aluno
+    document.getElementById('form-aluno').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const form = e.target;
+        const formData = new FormData(form);
+        
+        // Validar formulário
+        const validation = validateAlunoForm(formData);
+        if (!validation.isValid) {
+            displayFormErrors(validation.errors);
+            return;
+        }
+        
+        // Preparar dados
+        const alunoData = {
+            nome: formData.get('nome').trim(),
+            data_nascimento: formData.get('data_nascimento'),
+            email: formData.get('email')?.trim() || null,
+            status: formData.get('status'),
+            turma_id: formData.get('turma_id') ? parseInt(formData.get('turma_id')) : null
+        };
+        
+        // Criar ou atualizar
+        if (form.dataset.mode === 'edit') {
+            await updateAluno(parseInt(form.dataset.id), alunoData);
+        } else {
+            await createAluno(alunoData);
+        }
+    });
+    
+    // Formulário de Turma
+    document.getElementById('form-turma').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const turmaData = {
+            nome: formData.get('nome').trim(),
+            capacidade: parseInt(formData.get('capacidade'))
+        };
+        
+        await createTurma(turmaData);
+    });
+    
+    // Formulário de Matrícula
+    document.getElementById('form-matricula').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const matriculaData = {
+            aluno_id: parseInt(formData.get('aluno_id')),
+            turma_id: parseInt(formData.get('turma_id'))
+        };
+        
+        await matricularAluno(matriculaData);
+    });
+    
+    // === VALIDAÇÃO EM TEMPO REAL ===
+    
+    // Validação de email
+    document.getElementById('aluno-email').addEventListener('blur', (e) => {
+        const email = e.target.value.trim();
+        const errorEl = document.getElementById('email-error');
+        
+        if (email && !isValidEmail(email)) {
+            errorEl.textContent = 'Formato de email inválido';
+            e.target.classList.add('error');
+        } else {
+            errorEl.textContent = '';
+            e.target.classList.remove('error');
+        }
+    });
+    
+    // Validação de idade
+    document.getElementById('aluno-nascimento').addEventListener('blur', (e) => {
+        const date = e.target.value;
+        const errorEl = document.getElementById('nascimento-error');
+        
+        if (date && !isValidAge(date)) {
+            errorEl.textContent = 'Aluno deve ter pelo menos 5 anos de idade';
+            e.target.classList.add('error');
+        } else {
+            errorEl.textContent = '';
+            e.target.classList.remove('error');
+        }
+    });
+    
+    // === ACESSIBILIDADE - NAVEGAÇÃO POR TECLADO ===
+    
+    // Escape para fechar modais
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal[style*="flex"]');
+            if (openModal) {
+                closeModal(openModal.id);
+            }
+        }
+    });
+    
+    // Enter em elementos focáveis
+    document.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && e.target.matches('th[tabindex="0"]')) {
+            e.target.click();
+        }
+    });
+}
+
+// ===== INICIALIZAÇÃO =====
+
+/**
+ * Inicializar aplicação
+ */
+async function initApp() {
+    try {
+        console.log('🚀 Inicializando Sistema de Gestão Escolar...');
+        
+        // Configurar event listeners
+        initEventListeners();
+        
+        // Carregar dados iniciais
+        await Promise.all([
+            loadAlunos(),
+            loadTurmas()
+        ]);
+        
+        console.log('✅ Sistema inicializado com sucesso!');
+        
+    } catch (error) {
+        console.error('❌ Erro ao inicializar sistema:', error);
+        showToast('Erro ao carregar dados iniciais. Verifique se a API está rodando.', 'error');
+    }
+}
+
+// ===== EXECUÇÃO =====
+
+// Aguardar DOM estar pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
+
+// ===== FUNÇÕES GLOBAIS (para uso em onclick nos templates) =====
+
+// Tornar funções acessíveis globalmente
+window.editAluno = editAluno;
+window.deleteAluno = deleteAluno;
