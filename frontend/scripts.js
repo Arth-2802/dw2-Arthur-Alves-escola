@@ -23,7 +23,9 @@ let appState = {
         status: ''
     },
     ordenacao: 'nome',
-    tabAtiva: 'alunos'
+    tabAtiva: 'alunos',
+    usuario: null,
+    token: localStorage.getItem('auth_token') || null
 };
 
 // ===== UTILITÁRIOS =====
@@ -36,15 +38,34 @@ let appState = {
  */
 async function apiRequest(url, options = {}) {
     try {
+        console.log(`🔗 API Request: ${url}`, options); // Debug log
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        
+        // Adiciona token de autenticação se disponível (exceto para endpoints de auth)
+        if (appState.token && !url.startsWith('/auth/')) {
+            headers['Authorization'] = `Bearer ${appState.token}`;
+        }
+        
         const response = await fetch(`${API_BASE_URL}${url}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
+            headers,
             ...options
         });
 
+        console.log(`📡 Response Status: ${response.status}`, response); // Debug log
+
+        // Se token expirou, redireciona para login
+        if (response.status === 401 && appState.token) {
+            console.log('🔐 Token expirado, fazendo logout');
+            logout();
+            return;
+        }
+
         const data = await response.json();
+        console.log(`📄 Response Data:`, data); // Debug log
 
         if (!response.ok) {
             throw new Error(data.detail || `Erro ${response.status}`);
@@ -52,7 +73,7 @@ async function apiRequest(url, options = {}) {
 
         return data;
     } catch (error) {
-        console.error('Erro na API:', error);
+        console.error('❌ Erro na API:', error);
         throw error;
     }
 }
@@ -109,6 +130,108 @@ function showToast(message, type = 'info', duration = 5000) {
             setTimeout(() => toast.remove(), 300);
         }
     }, duration);
+}
+
+// ===== FUNÇÕES DE AUTENTICAÇÃO =====
+
+/**
+ * Realiza login do usuário
+ * @param {string} username - Nome de usuário
+ * @param {string} senha - Senha do usuário
+ * @returns {Promise} - Resposta da API
+ */
+async function login(username, senha) {
+    try {
+        const response = await apiRequest('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({
+                username: username,
+                senha: senha
+            })
+        });
+        
+        if (response.access_token) {
+            // Armazena token e dados do usuário
+            appState.token = response.access_token;
+            appState.usuario = response.usuario;
+            localStorage.setItem('auth_token', response.access_token);
+            localStorage.setItem('user_data', JSON.stringify(response.usuario));
+            
+            showToast('Login realizado com sucesso!', 'success');
+            mostrarApp();
+            return response;
+        }
+    } catch (error) {
+        console.error('Erro no login:', error);
+        showToast('Erro no login: ' + error.message, 'error');
+        throw error;
+    }
+}
+
+/**
+ * Realiza logout do usuário
+ */
+function logout() {
+    appState.token = null;
+    appState.usuario = null;
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_data');
+    
+    mostrarLogin();
+    showToast('Logout realizado com sucesso!', 'info');
+}
+
+/**
+ * Verifica se o usuário está autenticado
+ * @returns {boolean} - True se autenticado
+ */
+function isAuthenticated() {
+    return !!appState.token;
+}
+
+/**
+ * Obtém dados do usuário do perfil
+ */
+async function obterPerfil() {
+    try {
+        if (!isAuthenticated()) {
+            throw new Error('Usuário não autenticado');
+        }
+        
+        const usuario = await apiRequest('/auth/me');
+        appState.usuario = usuario;
+        localStorage.setItem('user_data', JSON.stringify(usuario));
+        
+        return usuario;
+    } catch (error) {
+        console.error('Erro ao obter perfil:', error);
+        logout();
+        throw error;
+    }
+}
+
+/**
+ * Mostra a tela de login
+ */
+function mostrarLogin() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('main-app').classList.add('hidden');
+}
+
+/**
+ * Mostra a aplicação principal
+ */
+function mostrarApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-app').classList.remove('hidden');
+    
+    // Atualiza nome do usuário no cabeçalho
+    if (appState.usuario) {
+        document.getElementById('user-name').textContent = appState.usuario.nome_completo;
+    }
+    
+    // Inicializa dados da aplicação
+    inicializarApp();
 }
 
 /**
@@ -839,7 +962,59 @@ function switchTab(tabName) {
 // ===== EVENT LISTENERS =====
 
 /**
- * Inicializar todos os event listeners
+ * Inicializa event listeners do login
+ */
+function initLoginListeners() {
+    // Form de login
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showToast('Preencha todos os campos', 'warning');
+                return;
+            }
+            
+            // Mostra loading
+            const form = document.getElementById('login-form');
+            const loading = document.getElementById('login-loading');
+            form.classList.add('hidden');
+            loading.classList.remove('hidden');
+            
+            try {
+                await login(username, password);
+            } catch (error) {
+                // Volta para o form em caso de erro
+                form.classList.remove('hidden');
+                loading.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Botão para mostrar/esconder senha
+    const togglePassword = document.querySelector('.toggle-password');
+    if (togglePassword) {
+        togglePassword.addEventListener('click', () => {
+            const passwordInput = document.getElementById('password');
+            const icon = togglePassword.querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    }
+}
+
+/**
+ * Inicializar todos os event listeners da aplicação principal
  */
 function initEventListeners() {
     // === NAVEGAÇÃO POR TABS ===
@@ -1041,6 +1216,14 @@ function initEventListeners() {
             e.target.click();
         }
     });
+    
+    // === LOGOUT ===
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            logout();
+        });
+    }
 }
 
 // ===== INICIALIZAÇÃO =====
@@ -1052,7 +1235,39 @@ async function initApp() {
     try {
         console.log('🚀 Inicializando Sistema de Gestão Escolar...');
         
-        // Configurar event listeners
+        // Verifica se há token armazenado
+        if (appState.token) {
+            try {
+                // Tenta obter dados do usuário
+                await obterPerfil();
+                mostrarApp();
+                return;
+            } catch (error) {
+                // Token inválido, remove e mostra login
+                console.log('Token inválido, redirecionando para login');
+                logout();
+            }
+        }
+        
+        // Se não há token ou token inválido, mostra login
+        mostrarLogin();
+        initLoginListeners();
+        
+    } catch (error) {
+        console.error('❌ Erro ao inicializar sistema:', error);
+        mostrarLogin();
+        initLoginListeners();
+    }
+}
+
+/**
+ * Inicializa a aplicação principal (após login)
+ */
+async function inicializarApp() {
+    try {
+        console.log('🔄 Carregando dados da aplicação...');
+        
+        // Configurar event listeners da app principal
         initEventListeners();
         
         // Carregar dados iniciais
@@ -1061,11 +1276,11 @@ async function initApp() {
             loadTurmas()
         ]);
         
-        console.log('✅ Sistema inicializado com sucesso!');
+        console.log('✅ Aplicação carregada com sucesso!');
         
     } catch (error) {
-        console.error('❌ Erro ao inicializar sistema:', error);
-        showToast('Erro ao carregar dados iniciais. Verifique se a API está rodando.', 'error');
+        console.error('❌ Erro ao carregar aplicação:', error);
+        showToast('Erro ao carregar dados. Tente novamente.', 'error');
     }
 }
 

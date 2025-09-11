@@ -1,23 +1,25 @@
 # INSTRUÇÕES DE EXECUÇÃO - Sistema de Gestão Escolar
 
-## ✅ PROJETO CONCLUÍDO COM SUCESSO!
+## ✅ PROJETO CONCLUÍDO COM SISTEMA DE LOGIN!
 
-Seu Sistema de Gestão Escolar está **100% implementado** e pronto para uso!
+Seu Sistema de Gestão Escolar está **100% implementado** com área de login e autenticação JWT!
 
 ### 📁 Estrutura Final do Projeto
 ```
 /frontend
-  ├── index.html          ✅ Interface completa com acessibilidade
-  ├── styles.css          ✅ Design responsivo com identidade visual
-  └── scripts.js          ✅ JavaScript para CRUD e filtros
+  ├── index.html          ✅ Interface com login e área administrativa
+  ├── styles.css          ✅ Design responsivo com tela de login
+  └── scripts.js          ✅ JavaScript com autenticação JWT
 
 /backend  
-  ├── app.py              ✅ API FastAPI com todos os endpoints
-  ├── models.py           ✅ Modelos SQLAlchemy (Turma, Aluno)
+  ├── app.py              ✅ API FastAPI com endpoints de autenticação
+  ├── models.py           ✅ Modelos SQLAlchemy (Usuario, Turma, Aluno)
   ├── database.py         ✅ Configuração SQLite
+  ├── auth.py             ✅ Sistema de autenticação JWT
+  ├── criar_admin.py      ✅ Script para criar usuário admin
   ├── seed.py             ✅ 28 registros de exemplo já inseridos
   ├── run_server.py       ✅ Script para executar servidor
-  ├── requirements.txt    ✅ Dependências Python
+  ├── requirements.txt    ✅ Dependências Python atualizadas
   └── app.db              ✅ Banco SQLite populado
 
 README.md               ✅ Documentação completa
@@ -28,16 +30,18 @@ REPORT.md              ✅ Relatório técnico detalhado
 
 ### 1. Backend (API)
 ```bash
-# Opção 1: Com conda (ambiente já criado)
-conda activate escola-env
+# 1. Instalar dependências atualizadas
 cd backend
-python app.py
+pip install -r requirements.txt
 
-# Opção 2: Com pip (se preferir)
-cd backend  
-pip install fastapi uvicorn sqlalchemy python-multipart pydantic
+# 2. Criar usuário administrador
+python criar_admin.py
+
+# 3. Executar servidor
 python app.py
 ```
+
+**IMPORTANTE**: Execute `criar_admin.py` primeiro para criar o usuário inicial!
 
 ### 2. Frontend
 - **Opção A**: Abra diretamente `frontend/index.html` no navegador
@@ -47,6 +51,14 @@ python app.py
   python -m http.server 8080
   # Acesse: http://localhost:8080
   ```
+
+## 🔐 CREDENCIAIS DE ACESSO
+
+**Login Padrão:**
+- **Usuário:** `admin`
+- **Senha:** `admin123`
+
+> **IMPORTANTE:** Altere a senha após o primeiro login em ambiente de produção!
 
 ## 🎯 FUNCIONALIDADES IMPLEMENTADAS
 

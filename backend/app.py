@@ -1,9 +1,10 @@
 """
 API FastAPI para Sistema de Gestão Escolar
-Implementa endpoints REST para gerenciar alunos, turmas e matrículas
+Implementa endpoints REST para gerenciar alunos, turmas e matrículas com autenticação
 """
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_validator, Field
 from typing import Optional, List
@@ -12,7 +13,14 @@ import re
 
 # Importações locais
 from database import SessionLocal, engine, get_db
-from models import Base, Aluno, Turma
+from models import Base, Aluno, Turma, Usuario
+from auth import (
+    criar_hash_senha, 
+    criar_access_token, 
+    autenticar_usuario, 
+    obter_usuario_atual,
+    usuario_ativo_required
+)
 
 # Criação das tabelas no banco de dados
 Base.metadata.create_all(bind=engine)
@@ -124,6 +132,46 @@ class MatriculaRequest(BaseModel):
     aluno_id: int = Field(..., description="ID do aluno")
     turma_id: int = Field(..., description="ID da turma")
 
+# === SCHEMAS DE AUTENTICAÇÃO ===
+
+class UsuarioCreate(BaseModel):
+    """Schema para criação de usuário"""
+    username: str = Field(..., min_length=3, max_length=50, description="Nome de usuário")
+    email: str = Field(..., max_length=255, description="Email do usuário")
+    senha: str = Field(..., min_length=6, description="Senha do usuário")
+    nome_completo: str = Field(..., min_length=3, max_length=100, description="Nome completo")
+    
+    @field_validator('email')
+    @classmethod
+    def validar_email(cls, v):
+        padrao_email = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(padrao_email, v):
+            raise ValueError('Formato de email inválido')
+        return v
+
+class UsuarioResponse(BaseModel):
+    """Schema para resposta com usuário"""
+    id: int
+    username: str
+    email: str
+    nome_completo: str
+    ativo: bool
+    data_criacao: datetime.datetime
+    ultimo_login: Optional[datetime.datetime] = None
+    
+    model_config = {"from_attributes": True}
+
+class LoginRequest(BaseModel):
+    """Schema para requisição de login"""
+    username: str = Field(..., description="Nome de usuário")
+    senha: str = Field(..., description="Senha")
+
+class TokenResponse(BaseModel):
+    """Schema para resposta com token"""
+    access_token: str
+    token_type: str
+    usuario: UsuarioResponse
+
 # === ENDPOINTS ===
 
 @app.get("/", tags=["Root"])
@@ -133,11 +181,98 @@ async def root():
         "message": "Sistema de Gestão Escolar API",
         "version": "1.0.0",
         "endpoints": {
+            "auth": "/auth",
             "alunos": "/alunos",
             "turmas": "/turmas",
             "matriculas": "/matriculas"
         }
     }
+
+# === ENDPOINTS DE AUTENTICAÇÃO ===
+
+@app.post("/auth/register", response_model=UsuarioResponse, tags=["Autenticação"])
+def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
+    """
+    Registra um novo usuário no sistema
+    """
+    # Verifica se o username já existe
+    db_usuario = db.query(Usuario).filter(Usuario.username == usuario.username).first()
+    if db_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username já está em uso"
+        )
+    
+    # Verifica se o email já existe
+    db_email = db.query(Usuario).filter(Usuario.email == usuario.email).first()
+    if db_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email já está em uso"
+        )
+    
+    # Cria o hash da senha
+    senha_hash = criar_hash_senha(usuario.senha)
+    
+    # Cria o usuário
+    db_usuario = Usuario(
+        username=usuario.username,
+        email=usuario.email,
+        senha_hash=senha_hash,
+        nome_completo=usuario.nome_completo
+    )
+    
+    db.add(db_usuario)
+    db.commit()
+    db.refresh(db_usuario)
+    
+    return db_usuario
+
+@app.post("/auth/login", response_model=TokenResponse, tags=["Autenticação"])
+def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Autentica um usuário e retorna um token JWT
+    """
+    usuario = autenticar_usuario(db, login_data.username, login_data.senha)
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciais inválidas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not usuario.ativo:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário inativo"
+        )
+    
+    # Atualiza o último login
+    usuario.ultimo_login = datetime.datetime.utcnow()
+    db.commit()
+    
+    # Cria o token JWT
+    access_token = criar_access_token(data={"sub": usuario.username})
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "usuario": usuario
+    }
+
+@app.get("/auth/me", response_model=UsuarioResponse, tags=["Autenticação"])
+def obter_perfil(usuario: Usuario = Depends(obter_usuario_atual)):
+    """
+    Retorna o perfil do usuário autenticado
+    """
+    return usuario
+
+@app.post("/auth/logout", tags=["Autenticação"])
+def logout(usuario: Usuario = Depends(obter_usuario_atual)):
+    """
+    Faz logout do usuário (endpoint informativo, token deve ser removido no frontend)
+    """
+    return {"message": "Logout realizado com sucesso"}
 
 # === ENDPOINTS DE TURMAS ===
 
@@ -234,7 +369,11 @@ def listar_alunos(
     return resultado
 
 @app.post("/alunos", response_model=AlunoResponse, status_code=201, tags=["Alunos"])
-def criar_aluno(aluno: AlunoCreate, db: Session = Depends(get_db)):
+def criar_aluno(
+    aluno: AlunoCreate, 
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(usuario_ativo_required)
+):
     """
     Cria um novo aluno
     """

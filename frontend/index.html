@@ -9,6 +9,79 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
+    <!-- Tela de Login -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <i class="fas fa-graduation-cap login-icon" aria-hidden="true"></i>
+                <h1>Sistema de Gestão Escolar</h1>
+                <p>Faça login para acessar o sistema</p>
+            </div>
+            
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                        Usuário
+                    </label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        class="form-input"
+                        placeholder="Digite seu nome de usuário"
+                        required
+                        autocomplete="username"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        Senha
+                    </label>
+                    <div class="password-input-container">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-input"
+                            placeholder="Digite sua senha"
+                            required
+                            autocomplete="current-password"
+                        >
+                        <button 
+                            type="button" 
+                            class="toggle-password" 
+                            aria-label="Mostrar/ocultar senha"
+                            tabindex="-1"
+                        >
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                    Entrar
+                </button>
+                
+                <div class="login-help">
+                    <p class="demo-info">
+                        <strong>Demo:</strong> usuário: <code>admin</code> | senha: <code>admin123</code>
+                    </p>
+                </div>
+            </form>
+            
+            <div class="login-loading hidden" id="login-loading">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Entrando...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aplicação Principal (inicialmente oculta) -->
+    <div id="main-app" class="main-app hidden">
     <!-- Header com navegação principal -->
     <header class="header" role="banner">
         <div class="header-content">
@@ -44,6 +117,18 @@
                     Turmas
                 </button>
             </nav>
+            
+            <!-- Painel do usuário -->
+            <div class="user-panel">
+                <div class="user-info">
+                    <i class="fas fa-user-circle" aria-hidden="true"></i>
+                    <span class="user-name" id="user-name">Carregando...</span>
+                </div>
+                <button class="logout-btn" id="logout-btn" aria-label="Sair do sistema">
+                    <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                    Sair
+                </button>
+            </div>
         </div>
     </header>
 
@@ -387,6 +472,7 @@
             </form>
         </div>
     </div>
+    </div> <!-- Fim da div main-app -->
 
     <!-- Area para mensagens de feedback -->
     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-label="Mensagens do sistema">

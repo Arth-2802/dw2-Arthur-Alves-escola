@@ -1,8 +1,8 @@
 """
 Modelos de dados usando SQLAlchemy ORM
-Define as tabelas Turma e Aluno com seus relacionamentos
+Define as tabelas Turma, Aluno e Usuario com seus relacionamentos
 """
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -55,3 +55,22 @@ class Aluno(Base):
         return hoje.year - self.data_nascimento.year - (
             (hoje.month, hoje.day) < (self.data_nascimento.month, self.data_nascimento.day)
         )
+
+class Usuario(Base):
+    """
+    Modelo da tabela Usuario
+    Representa um usuário do sistema com credenciais de login
+    """
+    __tablename__ = "usuarios"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), nullable=False, unique=True)    # Nome de usuário único
+    email = Column(String(255), nullable=False, unique=True)      # Email único
+    senha_hash = Column(String(255), nullable=False)             # Senha criptografada
+    nome_completo = Column(String(100), nullable=False)          # Nome completo do usuário
+    ativo = Column(Boolean, default=True, nullable=False)        # Se o usuário está ativo
+    data_criacao = Column(DateTime, default=datetime.datetime.utcnow)  # Data de criação
+    ultimo_login = Column(DateTime, nullable=True)               # Último login
+    
+    def __repr__(self):
+        return f"<Usuario(id={self.id}, username='{self.username}', ativo={self.ativo})>"
