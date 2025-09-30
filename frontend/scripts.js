@@ -38,7 +38,7 @@ let appState = {
  */
 async function apiRequest(url, options = {}) {
     try {
-        console.log(`🔗 API Request: ${url}`, options); // Debug log
+        console.log(`🔗 API Request: ${API_BASE_URL}${url}`, options); // Debug log
         
         const headers = {
             'Content-Type': 'application/json',
@@ -50,11 +50,16 @@ async function apiRequest(url, options = {}) {
             headers['Authorization'] = `Bearer ${appState.token}`;
         }
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+        
         const response = await fetch(`${API_BASE_URL}${url}`, {
             headers,
+            signal: controller.signal,
             ...options
         });
-
+        
+        clearTimeout(timeoutId);
         console.log(`📡 Response Status: ${response.status}`, response); // Debug log
 
         // Se token expirou, redireciona para login
@@ -74,7 +79,31 @@ async function apiRequest(url, options = {}) {
         return data;
     } catch (error) {
         console.error('❌ Erro na API:', error);
+        
+        // Tratamento específico para diferentes tipos de erro
+        if (error.name === 'AbortError') {
+            throw new Error('Tempo limite da requisição esgotado. Verifique sua conexão.');
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            throw new Error('Não foi possível conectar ao servidor. Verifique se o backend está rodando em http://localhost:8001');
+        }
+        
         throw error;
+    }
+}
+
+/**
+ * Verifica se a API está funcionando
+ */
+async function verificarSaudeAPI() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return response.ok;
+    } catch (error) {
+        console.error('API não está respondendo:', error);
+        return false;
     }
 }
 
@@ -142,6 +171,12 @@ function showToast(message, type = 'info', duration = 5000) {
  */
 async function login(username, senha) {
     try {
+        // Primeiro verifica se a API está funcionando
+        const apiOk = await verificarSaudeAPI();
+        if (!apiOk) {
+            throw new Error('Servidor não está respondendo. Verifique se o backend está rodando na porta 8001.');
+        }
+        
         const response = await apiRequest('/auth/login', {
             method: 'POST',
             body: JSON.stringify({
@@ -150,7 +185,7 @@ async function login(username, senha) {
             })
         });
         
-        if (response.access_token) {
+        if (response && response.access_token) {
             // Armazena token e dados do usuário
             appState.token = response.access_token;
             appState.usuario = response.usuario;
@@ -160,10 +195,21 @@ async function login(username, senha) {
             showToast('Login realizado com sucesso!', 'success');
             mostrarApp();
             return response;
+        } else {
+            throw new Error('Resposta inválida do servidor');
         }
     } catch (error) {
         console.error('Erro no login:', error);
-        showToast('Erro no login: ' + error.message, 'error');
+        let errorMessage = error.message;
+        
+        // Mensagens de erro mais amigáveis
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage = 'Não foi possível conectar ao servidor. Verifique se o backend está rodando.';
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+            errorMessage = 'Usuário ou senha incorretos.';
+        }
+        
+        showToast('Erro no login: ' + errorMessage, 'error');
         throw error;
     }
 }
